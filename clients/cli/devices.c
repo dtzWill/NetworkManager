@@ -56,6 +56,7 @@ static const char *lldp_attr_mapping[_NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_NUM] = {
 	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DESTINATION]         = NM_LLDP_ATTR_DESTINATION,
 	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID_TYPE]     = NM_LLDP_ATTR_CHASSIS_ID_TYPE,
 	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID_TYPE]        = NM_LLDP_ATTR_PORT_ID_TYPE,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLANS]               = NM_LLDP_ATTR_IEEE_802_1_VLANS,
 };
 
 typedef struct {
@@ -163,10 +164,41 @@ lldp_format_mgmt_addresses (NMLldpNeighbor *neighbor)
 			}
 		}
 
-		g_ptr_array_add (array, g_strdup (str->str));
 		g_ptr_array_add (array, g_string_free (g_steal_pointer (&str), FALSE));
 skip_item:
 		g_variant_unref (item);
+	}
+	g_ptr_array_add (array, NULL);
+
+	return (char **) g_ptr_array_free (array, FALSE);
+}
+
+static char**
+lldp_format_vlans (NMLldpNeighbor *neighbor)
+{
+	GVariant *variant, *item;
+	GPtrArray *array = NULL;
+	GVariantIter iter;
+
+	variant = nm_lldp_neighbor_get_attr_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_VLANS);
+	if (!variant || !g_variant_is_of_type (variant, G_VARIANT_TYPE ("aa{sv}")))
+		return NULL;
+
+	g_variant_iter_init (&iter, variant);
+	array = g_ptr_array_sized_new (g_variant_iter_n_children (&iter) + 1);
+	while ((item = g_variant_iter_next_value (&iter))) {
+		GVariant *vid, *name;
+
+		vid = g_variant_lookup_value (item, "vid", G_VARIANT_TYPE_UINT32);
+		name = g_variant_lookup_value (item, "name", G_VARIANT_TYPE_STRING);
+
+		if (!vid || !name)
+			continue;
+
+		g_ptr_array_add (array,
+		                 g_strdup_printf ("%u (\"%s\")",
+		                                  g_variant_get_uint32 (vid),
+		                                  g_variant_get_string (name, NULL)));
 	}
 	g_ptr_array_add (array, NULL);
 
@@ -210,6 +242,17 @@ _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 			return NULL;
 		*out_flags |= NM_META_ACCESSOR_GET_OUT_FLAGS_STRV;
 		strv = lldp_format_mgmt_addresses (neighbor);
+		if (strv) {
+			*out_is_default = FALSE;
+			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+			*out_to_free = strv;
+		}
+		return strv;
+	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLANS:
+		if (!NM_FLAGS_HAS (get_flags, NM_META_ACCESSOR_GET_FLAGS_ACCEPT_STRV))
+			return NULL;
+		*out_flags |= NM_META_ACCESSOR_GET_OUT_FLAGS_STRV;
+		strv = lldp_format_vlans (neighbor);
 		if (strv) {
 			*out_is_default = FALSE;
 			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
@@ -269,6 +312,7 @@ const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVIC
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID_FLAGS, "IEEE-802-1-PPVID-FLAGS"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VID, "IEEE-802-1-VID"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLAN_NAME, "IEEE-802-1-VLAN-NAME"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLANS, "IEEE-802-1-VLANS"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DESTINATION, "DESTINATION"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID_TYPE, "CHASSIS-ID-TYPE"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID_TYPE, "PORT-ID-TYPE"),
@@ -277,7 +321,7 @@ const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVIC
 
 #define NMC_FIELDS_DEV_LLDP_LIST_COMMON  "CHASSIS-ID,PORT-ID,PORT-DESCRIPTION,SYSTEM-NAME,SYSTEM-DESCRIPTION," \
                                          "SYSTEM-CAPABILITIES,MANAGEMENT-ADDRESSES,IEEE-802-1-PVID,IEEE-802-1-PPVID,IEEE-802-1-PPVID-FLAGS," \
-                                         "IEEE-802-1-VID,IEEE-802-1-VLAN-NAME,DESTINATION,CHASSIS-ID-TYPE,PORT-ID-TYPE,"\
+                                         "IEEE-802-1-VID,IEEE-802-1-VLAN-NAME,IEEE-802-1-VLANS,DESTINATION,CHASSIS-ID-TYPE,PORT-ID-TYPE,"\
                                          "DEVICE"
 
 /*****************************************************************************/
