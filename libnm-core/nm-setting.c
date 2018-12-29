@@ -1783,6 +1783,7 @@ nm_setting_enumerate_values (NMSetting *setting,
 		return;
 	}
 
+	//XXX: fix for WireGuard peers.
 	for (i = 0; i < sett_info->property_infos_len; i++) {
 		GParamSpec *prop_spec = _nm_sett_info_property_info_get_sorted (sett_info, i)->param_spec;
 		GValue value = G_VALUE_INIT;
@@ -1836,6 +1837,7 @@ _nm_setting_aggregate (NMSetting *setting,
 		nm_auto_unset_gvalue GValue value = G_VALUE_INIT;
 		NMSettingSecretFlags secret_flags;
 
+		//XXX: fix for WireGuard peers.
 		if (   !prop_spec
 		    || !NM_FLAGS_HAS (prop_spec->flags, NM_SETTING_PARAM_SECRET)) {
 			nm_assert (!nm_setting_get_secret_flags (setting, property_info->name, NULL, NULL));
@@ -2164,6 +2166,7 @@ nm_setting_get_secret_flags (NMSetting *setting,
 	g_return_val_if_fail (NM_IS_SETTING (setting), FALSE);
 	g_return_val_if_fail (secret_name != NULL, FALSE);
 
+	//XXX fix for WireGuard
 	return NM_SETTING_GET_CLASS (setting)->get_secret_flags (setting, secret_name, out_flags, error);
 }
 
@@ -2218,6 +2221,7 @@ nm_setting_set_secret_flags (NMSetting *setting,
 	g_return_val_if_fail (secret_name != NULL, FALSE);
 	g_return_val_if_fail (_nm_setting_secret_flags_valid (flags), FALSE);
 
+	//XXX fix for WireGuard
 	return NM_SETTING_GET_CLASS (setting)->set_secret_flags (setting, secret_name, flags, error);
 }
 
