@@ -209,7 +209,7 @@ complete_fields (const char *option, const char *prefix)
 	complete_field (h, nmc_fields_dev_show_vlan_prop);
 	complete_field (h, nmc_fields_dev_show_bluetooth);
 	complete_field (h, nmc_fields_dev_show_sections);
-	complete_field (h, nmc_fields_dev_lldp_list);
+	complete_field (h, metagen_device_lldp);
 
 	for (i = 0; i < _NM_META_SETTING_TYPE_NUM; i++)
 		complete_field_setting (h, i);

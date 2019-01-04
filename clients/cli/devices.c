@@ -41,6 +41,125 @@
 
 /*****************************************************************************/
 
+static const char *lldp_attr_mapping[_NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_NUM] = {
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID]          = NM_LLDP_ATTR_CHASSIS_ID,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID]             = NM_LLDP_ATTR_PORT_ID,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_DESCRIPTION]    = NM_LLDP_ATTR_PORT_DESCRIPTION,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_NAME]         = NM_LLDP_ATTR_SYSTEM_NAME,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_DESCRIPTION]  = NM_LLDP_ATTR_SYSTEM_DESCRIPTION,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_CAPABILITIES] = NM_LLDP_ATTR_SYSTEM_CAPABILITIES,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PVID]                = NM_LLDP_ATTR_IEEE_802_1_PVID,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID]               = NM_LLDP_ATTR_IEEE_802_1_PPVID,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID_FLAGS]         = NM_LLDP_ATTR_IEEE_802_1_PPVID_FLAGS,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VID]                 = NM_LLDP_ATTR_IEEE_802_1_VID,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLAN_NAME]           = NM_LLDP_ATTR_IEEE_802_1_VLAN_NAME,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DESTINATION]         = NM_LLDP_ATTR_DESTINATION,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID_TYPE]     = NM_LLDP_ATTR_CHASSIS_ID_TYPE,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID_TYPE]        = NM_LLDP_ATTR_PORT_ID_TYPE,
+};
+
+typedef struct {
+	NMLldpNeighbor *neighbor;
+	NMDevice *device;
+} LldpNeighborDevice;
+
+static gconstpointer
+_metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
+{
+	LldpNeighborDevice *nd = target;
+	NMLldpNeighbor *neighbor = nd->neighbor;
+	NMDevice *device = nd->device;
+	const char *cstr = NULL;
+	char *str = NULL, *capabilities;
+	const char *attr;
+	const GVariantType *type;
+	guint u;
+
+	NMC_HANDLE_COLOR (NM_META_COLOR_NONE);
+	*out_is_default = TRUE;
+	*out_flags |= NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+
+	/* These can't be hidden for backwards compatibility */
+	if (NM_IN_SET (info->info_type,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DEVICE,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_DESCRIPTION,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_NAME,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_DESCRIPTION,
+			NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_CAPABILITIES))
+		*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+
+	switch (info->info_type) {
+	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DEVICE:
+		*out_is_default = FALSE;
+		*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+		return nm_device_get_iface (device);
+	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_CAPABILITIES:
+		if (nm_lldp_neighbor_get_attr_uint_value (neighbor,
+		                                          NM_LLDP_ATTR_SYSTEM_CAPABILITIES,
+		                                          &u)) {
+			capabilities = nmc_parse_lldp_capabilities (u);
+			str = g_strdup_printf ("%u (%s)", u, capabilities);
+			*out_to_free = str;
+			g_free (capabilities);
+			*out_is_default = FALSE;
+			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+		}
+		return str;
+	default:
+		attr = lldp_attr_mapping[info->info_type];
+		g_return_val_if_fail (attr, NULL);
+		type = nm_lldp_neighbor_get_attr_type (neighbor, attr);
+		if (!type)
+			return NULL;
+		else if (g_variant_type_equal (type, G_VARIANT_TYPE_STRING)) {
+			nm_lldp_neighbor_get_attr_string_value (neighbor, attr, &cstr);
+			*out_is_default = FALSE;
+			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+			return cstr;
+		} else if (g_variant_type_equal (type, G_VARIANT_TYPE_UINT32)) {
+			if (nm_lldp_neighbor_get_attr_uint_value (neighbor, attr, &u)) {
+				str = g_strdup_printf ("%u", u);
+				*out_to_free = str;
+				*out_is_default = FALSE;
+				*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+			}
+			return str;
+		}
+		break;
+	}
+
+	g_return_val_if_reached (NULL);
+}
+
+const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_NUM + 1] = {
+#define _METAGEN_GENERAL_LLDP(type, name) \
+	[type] = NMC_META_GENERIC(name, .info_type = type, .get_fcn = _metagen_device_lldp_get_fcn)
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID, "CHASSIS-ID"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID, "PORT-ID"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_DESCRIPTION, "PORT-DESCRIPTION"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_DESCRIPTION, "SYSTEM-DESCRIPTION"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_NAME, "SYSTEM-NAME"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_CAPABILITIES, "SYSTEM-CAPABILITIES"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PVID, "IEEE-802-1-PVID"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID, "IEEE-802-1-PPVID"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID_FLAGS, "IEEE-802-1-PPVID-FLAGS"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VID, "IEEE-802-1-VID"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLAN_NAME, "IEEE-802-1-VLAN-NAME"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DESTINATION, "DESTINATION"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID_TYPE, "CHASSIS-ID-TYPE"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID_TYPE, "PORT-ID-TYPE"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DEVICE, "DEVICE"),
+};
+
+#define NMC_FIELDS_DEV_LLDP_LIST_COMMON  "CHASSIS-ID,PORT-ID,PORT-DESCRIPTION,SYSTEM-NAME,SYSTEM-DESCRIPTION," \
+                                         "SYSTEM-CAPABILITIES,IEEE-802-1-PVID,IEEE-802-1-PPVID,IEEE-802-1-PPVID-FLAGS," \
+                                         "IEEE-802-1-VID,IEEE-802-1-VLAN-NAME,DESTINATION,CHASSIS-ID-TYPE,PORT-ID-TYPE,"\
+                                         "DEVICE"
+
+/*****************************************************************************/
+
 static char *
 ap_wpa_rsn_flags_to_string (NM80211ApSecurityFlags flags)
 {
@@ -664,28 +783,6 @@ const NmcMetaGenericInfo *const nmc_fields_dev_show_sections[] = {
 };
 #define NMC_FIELDS_DEV_SHOW_SECTIONS_COMMON  "GENERAL.DEVICE,GENERAL.TYPE,GENERAL.HWADDR,GENERAL.MTU,GENERAL.STATE,"\
                                              "GENERAL.CONNECTION,GENERAL.CON-PATH,WIRED-PROPERTIES,IP4,IP6"
-
-const NmcMetaGenericInfo *const nmc_fields_dev_lldp_list[] = {
-	NMC_META_GENERIC ("NAME"),                      /* 0 */
-	NMC_META_GENERIC ("DEVICE"),                    /* 1 */
-	NMC_META_GENERIC ("CHASSIS-ID"),                /* 2 */
-	NMC_META_GENERIC ("PORT-ID"),                   /* 3 */
-	NMC_META_GENERIC ("PORT-DESCRIPTION"),          /* 4 */
-	NMC_META_GENERIC ("SYSTEM-NAME"),               /* 5 */
-	NMC_META_GENERIC ("SYSTEM-DESCRIPTION"),        /* 6 */
-	NMC_META_GENERIC ("SYSTEM-CAPABILITIES"),       /* 7 */
-	NMC_META_GENERIC ("IEEE-802-1-PVID"),           /* 8 */
-	NMC_META_GENERIC ("IEEE-802-1-PPVID"),          /* 9 */
-	NMC_META_GENERIC ("IEEE-802-1-PPVID-FLAGS"),    /* 10 */
-	NMC_META_GENERIC ("IEEE-802-1-VID"),            /* 11 */
-	NMC_META_GENERIC ("IEEE-802-1-VLAN-NAME"),      /* 12 */
-	NMC_META_GENERIC ("DESTINATION"),               /* 13 */
-	NMC_META_GENERIC ("CHASSIS-ID-TYPE"),           /* 14 */
-	NMC_META_GENERIC ("PORT-ID-TYPE"),              /* 15 */
-	NULL,
-};
-#define NMC_FIELDS_DEV_LLDP_LIST_COMMON  "DEVICE,CHASSIS-ID,PORT-ID,PORT-DESCRIPTION,SYSTEM-NAME,SYSTEM-DESCRIPTION," \
-                                         "SYSTEM-CAPABILITIES"
 
 static guint progress_id = 0;  /* ID of event source for displaying progress */
 
@@ -4028,89 +4125,35 @@ do_device_wifi (NmCli *nmc, int argc, char **argv)
 	return nmc->return_value;
 }
 
-static int
+static void
 show_device_lldp_list (NMDevice *device, NmCli *nmc, const char *fields_str, int *counter)
 {
-	const NMMetaAbstractInfo *const*tmpl;
-	NmcOutputField *arr;
+	gs_free_error GError *error = NULL;
 	GPtrArray *neighbors;
-	const char *str;
-	int i;
-	NMC_OUTPUT_DATA_DEFINE_SCOPED (out);
-	gs_free char *header_name = NULL;
+	guint i;
 
 	neighbors = nm_device_get_lldp_neighbors (device);
 
 	if (!neighbors || !neighbors->len)
-		return 0;
-
-	tmpl = (const NMMetaAbstractInfo *const*) nmc_fields_dev_lldp_list;
-
-	/* Main header name */
-	header_name = construct_header_name (_("Device LLDP neighbors"),
-	                                     nm_device_get_iface (device));
-	out_indices = parse_output_fields (fields_str, (const NMMetaAbstractInfo *const*) nmc_fields_dev_lldp_list, FALSE, NULL, NULL);
-	arr = nmc_dup_fields_array (tmpl, NMC_OF_FLAG_MAIN_HEADER_ADD | NMC_OF_FLAG_FIELD_NAMES);
-	g_ptr_array_add (out.output_data, arr);
+		return;
 
 	for (i = 0; i < neighbors->len; i++) {
-		NMLldpNeighbor *neighbor = neighbors->pdata[i];
-		guint value;
-
-		arr = nmc_dup_fields_array (tmpl, NMC_OF_FLAG_SECTION_PREFIX);
-		set_val_str (arr, 0, g_strdup_printf ("NEIGHBOR[%d]", (*counter)++));
-
-		set_val_strc (arr, 1, nm_device_get_iface (device));
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_CHASSIS_ID, &str))
-			set_val_strc (arr, 2, str);
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_PORT_ID, &str))
-			set_val_strc (arr, 3, str);
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_PORT_DESCRIPTION, &str))
-			set_val_strc (arr, 4, str);
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_SYSTEM_NAME, &str))
-			set_val_strc (arr, 5, str);
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_SYSTEM_DESCRIPTION, &str))
-			set_val_strc (arr, 6, str);
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_SYSTEM_CAPABILITIES, &value))
-			set_val_str (arr, 7, g_strdup_printf ("%u (%s)", value, nmc_parse_lldp_capabilities (value)));
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_PVID, &value))
-			set_val_str (arr, 8, g_strdup_printf ("%u", value));
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_PPVID, &value))
-			set_val_str (arr, 9, g_strdup_printf ("%u", value));
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_PPVID_FLAGS, &value))
-			set_val_str (arr, 10, g_strdup_printf ("%u", value));
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_VID, &value))
-			set_val_str (arr, 11, g_strdup_printf ("%u", value));
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_VLAN_NAME, &str))
-			set_val_strc (arr, 12, str);
-
-		if (nm_lldp_neighbor_get_attr_string_value (neighbor, NM_LLDP_ATTR_DESTINATION, &str))
-			set_val_strc (arr, 13, str);
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_CHASSIS_ID_TYPE, &value))
-			set_val_strc (arr, 14, g_strdup_printf ("%u", value));
-
-		if (nm_lldp_neighbor_get_attr_uint_value (neighbor, NM_LLDP_ATTR_PORT_ID_TYPE, &value))
-			set_val_strc (arr, 15, g_strdup_printf ("%u", value));
-
-		g_ptr_array_add (out.output_data, arr);
+		if (!nmc_print (&nmc->nmc_config,
+		                (gpointer []) { &(LldpNeighborDevice){ neighbors->pdata[i], device}, NULL },
+		                NULL,
+		                N_("LLDP Neighbors"),
+		                (const NMMetaAbstractInfo *const*) metagen_device_lldp,
+		                fields_str,
+		                &error)) {
+			g_string_printf (nmc->return_text, _("Error: %s"), error->message);
+			nmc->return_value = NMC_RESULT_ERROR_USER_INPUT;
+			return;
+		}
+		if (i + 1 < neighbors->len)
+			g_print ("\n");
 	}
 
-	print_data_prepare_width (out.output_data);
-	print_data (&nmc->nmc_config, out_indices, header_name, 0, &out);
-
-	return neighbors->len;
+	nmc->return_value = NMC_RESULT_SUCCESS;
 }
 
 static NMCResultCode
@@ -4150,19 +4193,9 @@ do_device_lldp_list (NmCli *nmc, int argc, char **argv)
 
 	if (!nmc->required_fields || strcasecmp (nmc->required_fields, "common") == 0)
 		fields_str = NMC_FIELDS_DEV_LLDP_LIST_COMMON;
-	else if (!nmc->required_fields || strcasecmp (nmc->required_fields, "all") == 0) {
+	else if (strcasecmp (nmc->required_fields, "all") == 0) {
 	} else
 		fields_str = nmc->required_fields;
-
-	out_indices = parse_output_fields (fields_str, (const NMMetaAbstractInfo *const*) nmc_fields_dev_lldp_list, FALSE, NULL, &error);
-
-	if (error) {
-		g_string_printf (nmc->return_text, _("Error: 'device lldp list': %s"), error->message);
-		return NMC_RESULT_ERROR_USER_INPUT;
-	}
-
-	if (nmc->complete)
-		return nmc->return_value;
 
 	if (device) {
 		show_device_lldp_list (device, nmc, fields_str, &counter);
