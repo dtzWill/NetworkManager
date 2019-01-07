@@ -42,6 +42,7 @@ typedef enum {
 	LLDP_ATTR_TYPE_NONE,
 	LLDP_ATTR_TYPE_UINT32,
 	LLDP_ATTR_TYPE_STRING,
+	LLDP_ATTR_TYPE_VARDICT,
 	LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS,
 } LldpAttrType;
 
@@ -60,6 +61,9 @@ typedef enum {
 	LLDP_ATTR_ID_IEEE_802_1_VID,
 	LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,
 	LLDP_ATTR_ID_IEEE_802_1_VLANS,
+	LLDP_ATTR_ID_IEEE_802_3_MAC_PHY_CONF,
+	LLDP_ATTR_ID_IEEE_802_3_POWER_VIA_MDI,
+	LLDP_ATTR_ID_IEEE_802_3_MAX_FRAME_SIZE,
 	_LLDP_ATTR_ID_COUNT,
 } LldpAttrId;
 
@@ -68,6 +72,7 @@ typedef struct {
 	union {
 		guint32 v_uint32;
 		char *v_string;
+		GVariant *v_variant;
 		CList v_variant_list;
 	};
 } LldpAttrData;
@@ -190,18 +195,21 @@ _access_uint32 (const void *data)
 
 NM_UTILS_LOOKUP_STR_DEFINE_STATIC (_lldp_attr_id_to_name, LldpAttrId,
 	NM_UTILS_LOOKUP_DEFAULT_WARN (NULL),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_PORT_DESCRIPTION,        NM_LLDP_ATTR_PORT_DESCRIPTION),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_SYSTEM_NAME,             NM_LLDP_ATTR_SYSTEM_NAME),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_SYSTEM_DESCRIPTION,      NM_LLDP_ATTR_SYSTEM_DESCRIPTION),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_SYSTEM_CAPABILITIES,     NM_LLDP_ATTR_SYSTEM_CAPABILITIES),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_MANAGEMENT_ADDRESSES,    NM_LLDP_ATTR_MANAGEMENT_ADDRESSES),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PVID,         NM_LLDP_ATTR_IEEE_802_1_PVID),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID,        NM_LLDP_ATTR_IEEE_802_1_PPVID),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID_FLAGS,  NM_LLDP_ATTR_IEEE_802_1_PPVID_FLAGS),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVIDS,       NM_LLDP_ATTR_IEEE_802_1_PPVIDS),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VID,          NM_LLDP_ATTR_IEEE_802_1_VID),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,    NM_LLDP_ATTR_IEEE_802_1_VLAN_NAME),
-	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLANS,        NM_LLDP_ATTR_IEEE_802_1_VLANS),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_PORT_DESCRIPTION,         NM_LLDP_ATTR_PORT_DESCRIPTION),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_SYSTEM_NAME,              NM_LLDP_ATTR_SYSTEM_NAME),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_SYSTEM_DESCRIPTION,       NM_LLDP_ATTR_SYSTEM_DESCRIPTION),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_SYSTEM_CAPABILITIES,      NM_LLDP_ATTR_SYSTEM_CAPABILITIES),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_MANAGEMENT_ADDRESSES,     NM_LLDP_ATTR_MANAGEMENT_ADDRESSES),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PVID,          NM_LLDP_ATTR_IEEE_802_1_PVID),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID,         NM_LLDP_ATTR_IEEE_802_1_PPVID),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID_FLAGS,   NM_LLDP_ATTR_IEEE_802_1_PPVID_FLAGS),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVIDS,        NM_LLDP_ATTR_IEEE_802_1_PPVIDS),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VID,           NM_LLDP_ATTR_IEEE_802_1_VID),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,     NM_LLDP_ATTR_IEEE_802_1_VLAN_NAME),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLANS,         NM_LLDP_ATTR_IEEE_802_1_VLANS),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_3_MAC_PHY_CONF,  NM_LLDP_ATTR_IEEE_802_3_MAC_PHY_CONF),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_3_POWER_VIA_MDI, NM_LLDP_ATTR_IEEE_802_3_POWER_VIA_MDI),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_3_MAX_FRAME_SIZE,NM_LLDP_ATTR_IEEE_802_3_MAX_FRAME_SIZE),
 	NM_UTILS_LOOKUP_ITEM_IGNORE (_LLDP_ATTR_ID_COUNT),
 );
 
@@ -219,6 +227,9 @@ _NM_UTILS_LOOKUP_DEFINE (static, _lldp_attr_id_to_type, LldpAttrId, LldpAttrType
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_VID,              LLDP_ATTR_TYPE_UINT32),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,        LLDP_ATTR_TYPE_STRING),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLANS,            LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS),
+	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_3_MAC_PHY_CONF,     LLDP_ATTR_TYPE_VARDICT),
+	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_3_POWER_VIA_MDI,    LLDP_ATTR_TYPE_VARDICT),
+	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_3_MAX_FRAME_SIZE,   LLDP_ATTR_TYPE_UINT32),
 	NM_UTILS_LOOKUP_ITEM_IGNORE (_LLDP_ATTR_ID_COUNT),
 );
 
@@ -293,6 +304,23 @@ _lldp_attr_set_uint32 (LldpAttrData *pdata, LldpAttrId attr_id, guint32 v_uint32
 }
 
 static void
+_lldp_attr_take_vardict (LldpAttrData *pdata, LldpAttrId attr_id, GVariant *variant)
+{
+
+	nm_assert (pdata);
+	nm_assert (_lldp_attr_id_to_type (attr_id) == LLDP_ATTR_TYPE_VARDICT);
+
+	pdata = &pdata[attr_id];
+
+	/* we ignore duplicate fields silently */
+	if (pdata->attr_type != LLDP_ATTR_TYPE_NONE)
+		return;
+
+	pdata->attr_type = LLDP_ATTR_TYPE_VARDICT;
+	pdata->v_variant = variant;
+}
+
+static void
 _lldp_attr_add_vardict (LldpAttrData *pdata, LldpAttrId attr_id, GVariant *variant)
 {
 	nm_assert (pdata);
@@ -363,7 +391,9 @@ lldp_neighbor_free (LldpNeighbor *neighbor)
 
 			if (attr_type == LLDP_ATTR_TYPE_STRING)
 				g_free (neighbor->attrs[attr_id].v_string);
-			else if (attr_type == LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS) {
+			else if (attr_type == LLDP_ATTR_TYPE_VARDICT) {
+				g_variant_unref (neighbor->attrs[attr_id].v_variant);
+			} else if (attr_type == LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS) {
 				c_list_for_each_entry_safe (elem, safe, &neighbor->attrs[attr_id].v_variant_list, lst) {
 					g_variant_unref (elem->data);
 					nm_c_list_elem_free (elem);
@@ -607,13 +637,9 @@ lldp_neighbor_new (sd_lldp_neighbor *neighbor_sd, GError **error)
 			goto out;
 		}
 
-		if (!(   memcmp (oui, SD_LLDP_OUI_802_1, sizeof (oui)) == 0
-		      && NM_IN_SET (subtype,
-		                    SD_LLDP_OUI_802_1_SUBTYPE_PORT_PROTOCOL_VLAN_ID,
-		                    SD_LLDP_OUI_802_1_SUBTYPE_PORT_VLAN_ID,
-		                    SD_LLDP_OUI_802_1_SUBTYPE_VLAN_NAME)))
+		if (   memcmp (oui, SD_LLDP_OUI_802_1, sizeof (oui)) != 0
+		    && memcmp (oui, SD_LLDP_OUI_802_3, sizeof (oui)) != 0)
 			continue;
-
 
 		/* skip over leading TLV, OUI and subtype */
 #ifdef WITH_MORE_ASSERTS
@@ -633,8 +659,7 @@ lldp_neighbor_new (sd_lldp_neighbor *neighbor_sd, GError **error)
 		data8 += 6;
 		len -= 6;
 
-		/*if (memcmp (oui, SD_LLDP_OUI_802_1, sizeof (oui)) == 0)*/
-		{
+		if (memcmp (oui, SD_LLDP_OUI_802_1, sizeof (oui)) == 0) {
 			GVariantDict dict;
 
 			switch (subtype) {
@@ -691,7 +716,45 @@ lldp_neighbor_new (sd_lldp_neighbor *neighbor_sd, GError **error)
 				break;
 			}
 			default:
-				g_assert_not_reached ();
+				continue;
+			}
+		}
+		if (memcmp (oui, SD_LLDP_OUI_802_3, sizeof (oui)) == 0) {
+			GVariantDict dict;
+
+			switch (subtype) {
+			case SD_LLDP_OUI_802_3_SUBTYPE_MAC_PHY_CONFIG_STATUS:
+				if (len != 5)
+					continue;
+
+				g_variant_dict_init (&dict, NULL);
+				g_variant_dict_insert (&dict, "autoneg", "u", _access_uint8 (&data8[0]));
+				g_variant_dict_insert (&dict, "pmd-autoneg-cap", "u", _access_uint16 (&data8[1]));
+				g_variant_dict_insert (&dict, "operational-mau-type", "u", _access_uint16 (&data8[3]));
+
+				_lldp_attr_take_vardict (neigh->attrs,
+				                         LLDP_ATTR_ID_IEEE_802_3_MAC_PHY_CONF,
+				                         g_variant_ref_sink (g_variant_dict_end (&dict)));
+				break;
+			case SD_LLDP_OUI_802_3_SUBTYPE_POWER_VIA_MDI:
+				if (len != 3)
+					continue;
+
+				g_variant_dict_init (&dict, NULL);
+				g_variant_dict_insert (&dict, "mdi-power-support", "u", _access_uint8 (&data8[0]));
+				g_variant_dict_insert (&dict, "pse-power-pair", "u", _access_uint8 (&data8[1]));
+				g_variant_dict_insert (&dict, "power-class", "u", _access_uint8 (&data8[2]));
+
+				_lldp_attr_take_vardict (neigh->attrs,
+				                         LLDP_ATTR_ID_IEEE_802_3_POWER_VIA_MDI,
+				                         g_variant_ref_sink (g_variant_dict_end (&dict)));
+				break;
+			case SD_LLDP_OUI_802_3_SUBTYPE_MAXIMUM_FRAME_SIZE:
+				if (len != 2)
+					continue;
+				_lldp_attr_set_uint32 (neigh->attrs, LLDP_ATTR_ID_IEEE_802_3_MAX_FRAME_SIZE,
+				                       _access_uint16 (data8));
+				break;
 			}
 		}
 	} while (sd_lldp_neighbor_tlv_next (neighbor_sd) > 0);
@@ -755,6 +818,11 @@ lldp_neighbor_to_variant (LldpNeighbor *neigh)
 			g_variant_builder_add (&builder, "{sv}",
 			                       _lldp_attr_id_to_name (attr_id),
 			                       g_variant_new_string (data->v_string));
+			break;
+		case LLDP_ATTR_TYPE_VARDICT:
+			g_variant_builder_add (&builder, "{sv}",
+			                       _lldp_attr_id_to_name (attr_id),
+			                       g_variant_ref (data->v_variant));
 			break;
 		case LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS: {
 			NMCListElem *elem;

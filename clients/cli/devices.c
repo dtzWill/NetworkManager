@@ -57,6 +57,9 @@ static const char *lldp_attr_mapping[_NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_NUM] = {
 	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID_TYPE]     = NM_LLDP_ATTR_CHASSIS_ID_TYPE,
 	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID_TYPE]        = NM_LLDP_ATTR_PORT_ID_TYPE,
 	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLANS]               = NM_LLDP_ATTR_IEEE_802_1_VLANS,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_MAC_PHY_CONF]        = NM_LLDP_ATTR_IEEE_802_3_MAC_PHY_CONF,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_POWER_VIA_MDI]       = NM_LLDP_ATTR_IEEE_802_3_POWER_VIA_MDI,
+	[NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_MAX_FRAME_SIZE]      = NM_LLDP_ATTR_IEEE_802_3_MAX_FRAME_SIZE,
 };
 
 typedef struct {
@@ -264,6 +267,66 @@ lldp_format_ppvids (NMLldpNeighbor *neighbor)
 	return (char **) g_ptr_array_free (array, FALSE);
 }
 
+static char*
+lldp_format_mac_phy (NMLldpNeighbor *neighbor)
+{
+	GVariant *variant;
+	GVariant *v_an, *v_pmd, *v_mau;
+	guint an;
+
+	variant = nm_lldp_neighbor_get_attr_value (neighbor, NM_LLDP_ATTR_IEEE_802_3_MAC_PHY_CONF);
+	if (!variant || !g_variant_is_of_type (variant, G_VARIANT_TYPE_VARDICT))
+		return NULL;
+
+	v_an = g_variant_lookup_value (variant, "autoneg", G_VARIANT_TYPE_UINT32);
+	v_pmd = g_variant_lookup_value (variant, "pmd-autoneg-cap", G_VARIANT_TYPE_UINT32);
+	v_mau = g_variant_lookup_value (variant, "operational-mau-type", G_VARIANT_TYPE_UINT32);
+
+	if (!v_an || !v_pmd || !v_mau)
+		return NULL;
+
+	an = g_variant_get_uint32 (v_an);
+
+	return g_strdup_printf ("auto-negotiation 0x%02x (%ssupported, %senabled), "
+	                        "PMD advertised capability 0x04%x, MAU %u",
+	                        an,
+	                        (an & 1) ? "" : "not ",
+	                        (an & 2) ? "" : "not ",
+	                        g_variant_get_uint32 (v_pmd),
+	                        g_variant_get_uint32 (v_mau));
+}
+
+static char*
+lldp_format_power_via_mdi (NMLldpNeighbor *neighbor)
+{
+	GVariant *variant;
+	GVariant *v_mdi, *v_pse, *v_power;
+	guint mdi;
+
+	variant = nm_lldp_neighbor_get_attr_value (neighbor, NM_LLDP_ATTR_IEEE_802_3_POWER_VIA_MDI);
+	if (!variant || !g_variant_is_of_type (variant, G_VARIANT_TYPE_VARDICT))
+		return NULL;
+
+	v_mdi = g_variant_lookup_value (variant, "mdi-power-support", G_VARIANT_TYPE_UINT32);
+	v_pse = g_variant_lookup_value (variant, "pse-power-pair", G_VARIANT_TYPE_UINT32);
+	v_power = g_variant_lookup_value (variant, "power-class", G_VARIANT_TYPE_UINT32);
+
+	if (!v_mdi || !v_pse || !v_power)
+		return NULL;
+
+	mdi = g_variant_get_uint32 (v_mdi);
+
+	return g_strdup_printf ("MDI 0x%02x (%s port class, PSE %ssupported, PSE state %s, PSE pairs control %ssupported), "
+	                        "PSE power pair %u, power class %u",
+	                        mdi,
+	                        (mdi & 1) ? "PSE": "PD",
+	                        (mdi & 2) ? "" : "not ",
+	                        (mdi & 4) ? "enabled" : "disabled",
+	                        (mdi & 8) ? "" : "not ",
+	                        g_variant_get_uint32 (v_pse),
+	                        g_variant_get_uint32 (v_power));
+}
+
 static gconstpointer
 _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 {
@@ -329,6 +392,22 @@ _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 			*out_to_free = strv;
 		}
 		return strv;
+	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_MAC_PHY_CONF:
+		str = lldp_format_mac_phy (neighbor);
+		if (str) {
+			*out_is_default = FALSE;
+			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+			*out_to_free = str;
+		}
+		return str;
+	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_POWER_VIA_MDI:
+		str = lldp_format_power_via_mdi (neighbor);
+		if (str) {
+			*out_is_default = FALSE;
+			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+			*out_to_free = str;
+		}
+		return str;
 	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_SYSTEM_CAPABILITIES:
 		if (nm_lldp_neighbor_get_attr_uint_value (neighbor,
 		                                          NM_LLDP_ATTR_SYSTEM_CAPABILITIES,
@@ -384,6 +463,9 @@ const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVIC
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VID, "IEEE-802-1-VID"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLAN_NAME, "IEEE-802-1-VLAN-NAME"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLANS, "IEEE-802-1-VLANS"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_MAC_PHY_CONF, "IEEE-802-3-MAC-PHY-CONF"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_POWER_VIA_MDI, "IEEE-802-3-POWER-VIA-MDI"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_MAX_FRAME_SIZE, "IEEE-802-3-MAX-FRAME-SIZE"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_DESTINATION, "DESTINATION"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_CHASSIS_ID_TYPE, "CHASSIS-ID-TYPE"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PORT_ID_TYPE, "PORT-ID-TYPE"),
@@ -394,7 +476,7 @@ const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVIC
                                          "SYSTEM-CAPABILITIES,MANAGEMENT-ADDRESSES,IEEE-802-1-PVID,IEEE-802-1-PPVID,IEEE-802-1-PPVID-FLAGS," \
                                          "IEEE-802-1-PPVIDS," \
                                          "IEEE-802-1-VID,IEEE-802-1-VLAN-NAME,IEEE-802-1-VLANS,DESTINATION,CHASSIS-ID-TYPE,PORT-ID-TYPE,"\
-                                         "DEVICE"
+                                         "IEEE-802-3-MAC-PHY-CONF,IEEE-802-3-POWER-VIA-MDI,IEEE-802-3-MAX-FRAME-SIZE,DEVICE"
 
 /*****************************************************************************/
 
