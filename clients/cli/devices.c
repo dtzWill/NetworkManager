@@ -205,6 +205,65 @@ lldp_format_vlans (NMLldpNeighbor *neighbor)
 	return (char **) g_ptr_array_free (array, FALSE);
 }
 
+static char**
+lldp_format_ppvids (NMLldpNeighbor *neighbor)
+{
+	GVariant *variant, *item;
+	GPtrArray *array = NULL;
+	GVariantIter iter;
+
+	variant = nm_lldp_neighbor_get_attr_value (neighbor, NM_LLDP_ATTR_IEEE_802_1_PPVIDS);
+	if (!variant || !g_variant_is_of_type (variant, G_VARIANT_TYPE ("aa{sv}")))
+		return NULL;
+
+	g_variant_iter_init (&iter, variant);
+	array = g_ptr_array_sized_new (g_variant_iter_n_children (&iter) + 1);
+	while ((item = g_variant_iter_next_value (&iter))) {
+		GVariant *v_ppvid, *v_flags;
+		guint flags;
+		nm_auto_free_gstring GString *flags_str = NULL;
+
+		v_ppvid = g_variant_lookup_value (item, "ppvid", G_VARIANT_TYPE_UINT32);
+		v_flags = g_variant_lookup_value (item, "flags", G_VARIANT_TYPE_UINT32);
+
+		if (!v_ppvid || !v_flags)
+			continue;
+
+		flags = g_variant_get_uint32 (v_flags);
+		flags_str = g_string_new ("");
+		if (flags) {
+			g_string_append (flags_str, " (");
+			if (flags & 1) {
+				g_string_append (flags_str, "supported");
+				flags &= ~0x1;
+			}
+			if (flags & 2) {
+				if (flags_str->len != 0)
+					g_string_append_c (flags_str, ',');
+				g_string_append (flags_str, "enabled");
+				flags &= ~2;
+			}
+			if (flags) {
+				if (flags_str->len != 0)
+					g_string_append_c (flags_str, ',');
+				g_string_append (flags_str, "?");
+			}
+			g_string_append_c (flags_str, ')');
+		}
+
+
+
+		g_ptr_array_add (array,
+		                 g_strdup_printf ("%u, flags 0x%x%s",
+		                                  g_variant_get_uint32 (v_ppvid),
+		                                  g_variant_get_uint32 (v_flags),
+		                                  flags_str->str));
+	}
+	g_ptr_array_add (array, NULL);
+
+	return (char **) g_ptr_array_free (array, FALSE);
+}
+
 static gconstpointer
 _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 {
@@ -253,6 +312,17 @@ _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 			return NULL;
 		*out_flags |= NM_META_ACCESSOR_GET_OUT_FLAGS_STRV;
 		strv = lldp_format_vlans (neighbor);
+		if (strv) {
+			*out_is_default = FALSE;
+			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+			*out_to_free = strv;
+		}
+		return strv;
+	case NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVIDS:
+		if (!NM_FLAGS_HAS (get_flags, NM_META_ACCESSOR_GET_FLAGS_ACCEPT_STRV))
+			return NULL;
+		*out_flags |= NM_META_ACCESSOR_GET_OUT_FLAGS_STRV;
+		strv = lldp_format_ppvids (neighbor);
 		if (strv) {
 			*out_is_default = FALSE;
 			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
@@ -310,6 +380,7 @@ const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVIC
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PVID, "IEEE-802-1-PVID"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID, "IEEE-802-1-PPVID"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVID_FLAGS, "IEEE-802-1-PPVID-FLAGS"),
+	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_PPVIDS, "IEEE-802-1-PPVIDS"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VID, "IEEE-802-1-VID"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLAN_NAME, "IEEE-802-1-VLAN-NAME"),
 	_METAGEN_GENERAL_LLDP (NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_VLANS, "IEEE-802-1-VLANS"),
@@ -321,6 +392,7 @@ const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVIC
 
 #define NMC_FIELDS_DEV_LLDP_LIST_COMMON  "CHASSIS-ID,PORT-ID,PORT-DESCRIPTION,SYSTEM-NAME,SYSTEM-DESCRIPTION," \
                                          "SYSTEM-CAPABILITIES,MANAGEMENT-ADDRESSES,IEEE-802-1-PVID,IEEE-802-1-PPVID,IEEE-802-1-PPVID-FLAGS," \
+                                         "IEEE-802-1-PPVIDS," \
                                          "IEEE-802-1-VID,IEEE-802-1-VLAN-NAME,IEEE-802-1-VLANS,DESTINATION,CHASSIS-ID-TYPE,PORT-ID-TYPE,"\
                                          "DEVICE"
 

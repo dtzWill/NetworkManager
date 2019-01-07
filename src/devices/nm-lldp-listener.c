@@ -56,6 +56,7 @@ typedef enum {
 	LLDP_ATTR_ID_IEEE_802_1_PVID,
 	LLDP_ATTR_ID_IEEE_802_1_PPVID,
 	LLDP_ATTR_ID_IEEE_802_1_PPVID_FLAGS,
+	LLDP_ATTR_ID_IEEE_802_1_PPVIDS,
 	LLDP_ATTR_ID_IEEE_802_1_VID,
 	LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,
 	LLDP_ATTR_ID_IEEE_802_1_VLANS,
@@ -197,6 +198,7 @@ NM_UTILS_LOOKUP_STR_DEFINE_STATIC (_lldp_attr_id_to_name, LldpAttrId,
 	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PVID,         NM_LLDP_ATTR_IEEE_802_1_PVID),
 	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID,        NM_LLDP_ATTR_IEEE_802_1_PPVID),
 	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID_FLAGS,  NM_LLDP_ATTR_IEEE_802_1_PPVID_FLAGS),
+	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVIDS,       NM_LLDP_ATTR_IEEE_802_1_PPVIDS),
 	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VID,          NM_LLDP_ATTR_IEEE_802_1_VID),
 	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,    NM_LLDP_ATTR_IEEE_802_1_VLAN_NAME),
 	NM_UTILS_LOOKUP_STR_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLANS,        NM_LLDP_ATTR_IEEE_802_1_VLANS),
@@ -213,6 +215,7 @@ _NM_UTILS_LOOKUP_DEFINE (static, _lldp_attr_id_to_type, LldpAttrId, LldpAttrType
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_PVID,             LLDP_ATTR_TYPE_UINT32),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID,            LLDP_ATTR_TYPE_UINT32),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVID_FLAGS,      LLDP_ATTR_TYPE_UINT32),
+	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_PPVIDS,           LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_VID,              LLDP_ATTR_TYPE_UINT32),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLAN_NAME,        LLDP_ATTR_TYPE_STRING),
 	NM_UTILS_LOOKUP_ITEM (LLDP_ATTR_ID_IEEE_802_1_VLANS,            LLDP_ATTR_TYPE_ARRAY_OF_VARDICTS),
@@ -632,6 +635,8 @@ lldp_neighbor_new (sd_lldp_neighbor *neighbor_sd, GError **error)
 
 		/*if (memcmp (oui, SD_LLDP_OUI_802_1, sizeof (oui)) == 0)*/
 		{
+			GVariantDict dict;
+
 			switch (subtype) {
 			case SD_LLDP_OUI_802_1_SUBTYPE_PORT_VLAN_ID:
 				if (len != 2)
@@ -646,10 +651,18 @@ lldp_neighbor_new (sd_lldp_neighbor *neighbor_sd, GError **error)
 				                       _access_uint8 (&data8[0]));
 				_lldp_attr_set_uint32 (neigh->attrs, LLDP_ATTR_ID_IEEE_802_1_PPVID,
 				                       _access_uint16 (&data8[1]));
+
+				g_variant_dict_init (&dict, NULL);
+				g_variant_dict_insert (&dict, "ppvid", "u", _access_uint16 (&data8[1]));
+				g_variant_dict_insert (&dict, "flags", "u", _access_uint8 (&data8[0]));
+
+				_lldp_attr_add_vardict (neigh->attrs,
+				                        LLDP_ATTR_ID_IEEE_802_1_PPVIDS,
+				                        g_variant_ref_sink (g_variant_dict_end (&dict)));
+
 				break;
 			case SD_LLDP_OUI_802_1_SUBTYPE_VLAN_NAME: {
 				int l;
-				GVariantDict dict;
 				guint vid;
 				char *name;
 

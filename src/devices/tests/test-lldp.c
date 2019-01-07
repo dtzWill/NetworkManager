@@ -242,7 +242,7 @@ _test_recv_data1_check (GMainLoop *loop, NMLldpListener *listener)
 	                              SD_LLDP_CHASSIS_SUBTYPE_MAC_ADDRESS, "00:01:30:F9:AD:A0",
 	                              SD_LLDP_PORT_SUBTYPE_INTERFACE_NAME, "1/1");
 	g_assert (neighbor);
-	g_assert_cmpint (g_variant_n_children (neighbor), ==, 4 + 12);
+	g_assert_cmpint (g_variant_n_children (neighbor), ==, 4 + 16);
 
 	attr = g_variant_lookup_value (neighbor, NM_LLDP_ATTR_DESTINATION, G_VARIANT_TYPE_STRING);
 	nmtst_assert_variant_string (attr, NM_LLDP_DEST_NEAREST_BRIDGE);
