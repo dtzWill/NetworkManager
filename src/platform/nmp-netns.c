@@ -19,6 +19,7 @@
  */
 
 #include "nm-default.h"
+
 #include "nmp-netns.h"
 
 #include <fcntl.h>
@@ -27,7 +28,17 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "NetworkManagerUtils.h"
+/*****************************************************************************/
+
+/* NOTE: NMPNetns and all code used here must be thread-safe! */
+
+/* we may not call logging functions from the main-thread alone. Hence, we
+ * require locking from nm-logging. Indicate that by setting NM_THREAD_SAFE_ON_MAIN_THREAD
+ * to zero. */
+#undef NM_THREAD_SAFE_ON_MAIN_THREAD
+#define NM_THREAD_SAFE_ON_MAIN_THREAD 0
+
+/*****************************************************************************/
 
 #define PROC_SELF_NS_MNT "/proc/self/ns/mnt"
 #define PROC_SELF_NS_NET "/proc/self/ns/net"
@@ -121,7 +132,7 @@ static NMPNetns *_netns_new (GError **error);
 
 /*****************************************************************************/
 
-static GArray *netns_stack = NULL;
+static _nm_thread_local GArray *netns_stack = NULL;
 
 static void
 _stack_ensure_init_impl (void)
